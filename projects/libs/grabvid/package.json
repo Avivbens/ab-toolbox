@@ -2,7 +2,14 @@
   "name": "@ab-toolbox/grabvid",
   "version": "0.0.0",
   "description": "Download videos and HLS streams from pages that block yt-dlp, with an interactive quality picker and resumable downloads",
-  "keywords": [],
+  "keywords": [
+    "cli",
+    "video",
+    "hls",
+    "m3u8",
+    "downloader",
+    "yt-dlp"
+  ],
   "homepage": "https://github.com/Avivbens/ab-toolbox/tree/master/projects/libs/grabvid#readme",
   "bugs": {
     "url": "https://github.com/Avivbens/ab-toolbox/issues"
@@ -19,20 +26,25 @@
   },
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "bin": {
+    "grabvid": "./dist/main.js"
+  },
   "files": [
     "dist",
     "!**/*.tsbuildinfo"
   ],
+  "dependencies": {
+    "@inquirer/select": "^5.2.6",
+    "yargs": "^18.2.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/yargs": "^17.0.35"
+  },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "publishConfig": {
     "access": "public"
@@ -41,7 +53,19 @@
     "targets": {
       "build": {},
       "test": {},
-      "lint": {}
+      "lint": {},
+      "serve": {
+        "executor": "nx:run-commands",
+        "dependsOn": [
+          "build"
+        ],
+        "options": {
+          "cwd": "{projectRoot}",
+          "command": "mkdir -p tmp && cd tmp && node ../dist/main.js",
+          "tty": true
+        },
+        "continuous": true
+      }
     }
   }
 }
