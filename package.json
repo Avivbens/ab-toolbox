@@ -1,0 +1,54 @@
+{
+  "name": "@ab-toolbox/source",
+  "version": "0.0.0",
+  "private": true,
+  "homepage": "https://github.com/Avivbens/ab-toolbox",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Avivbens/ab-toolbox.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Aviv Ben Shahar",
+    "email": "avivbens87@gmail.com"
+  },
+  "scripts": {
+    "build": "nx run-many --target=build",
+    "cleanup": "find ./projects/ -name dist -type d -not -path '*/node_modules/*' | xargs -I {} rm -rf {}",
+    "lint": "nx run-many --target=lint",
+    "lint:fix": "nx run-many --target=lint:fix",
+    "prepare": "husky || exit 0",
+    "test": "nx run-many --target=test",
+    "typecheck": "nx run-many --target=typecheck"
+  },
+  "devDependencies": {
+    "@ab-toolbox/workspace": "workspace:*",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@eslint/js": "^9.8.0",
+    "@nx/devkit": "23.3.0",
+    "@nx/eslint": "23.3.0",
+    "@nx/eslint-plugin": "23.3.0",
+    "@nx/js": "23.3.0",
+    "@swc-node/register": "^1.12.1",
+    "@swc/core": "^1.16.0",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.0",
+    "@types/node": "^24.0.3",
+    "@vitest/coverage-v8": "^4.0.8",
+    "eslint": "^9.8.0",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-prettier": "^5.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "nx": "23.3.0",
+    "prettier": "^3.5.3",
+    "prettier-plugin-packagejson": "^2.5.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^4.0.8"
+  },
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=22"
+  }
+}

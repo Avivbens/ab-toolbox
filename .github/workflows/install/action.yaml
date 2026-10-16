@@ -1,0 +1,23 @@
+---
+name: '☑️ Install deps'
+description: 'Install dependencies and setup node'
+
+inputs:
+  skip-cache:
+    description: 'Skip cache when in debug mode'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: 🖥️ Setup pnpm + Node
+      uses: pnpm/setup@v3
+      with:
+        runtime: node@22
+        cache: ${{ inputs.skip-cache != 'true' && runner.debug != '1' }}
+        require-lockfile: true
+
+    - name: 'Derive appropriate SHAs for base and head for `nx affected` commands'
+      uses: nrwl/nx-set-shas@v4
+      with: { main-branch-name: 'master' }

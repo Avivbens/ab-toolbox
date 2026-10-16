@@ -1,0 +1,43 @@
+---
+name: PR Health Checks 🐛
+on:
+  pull_request:
+    paths:
+      - 'projects/**/*'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/**'
+    branches:
+      - master
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  PR-checks:
+    runs-on: ubuntu-latest
+    name: PR Health Checks 🐛
+    steps:
+      - name: 📀 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🧪 Check out repository code
+        uses: ./.github/workflows/health-check
+        env:
+          CI: true
+          NX_NO_DAEMON: true
+          NX_NO_INTERACTIVE: true
+        with:
+          run-tests: true
+          run-lint: true
+          run-build: true
+          run-typecheck: true

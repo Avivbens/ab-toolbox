@@ -1,0 +1,9 @@
+{
+  "generators": {
+    "generate-lib": {
+      "factory": "./src/generators/generate-lib/generate-lib.generator",
+      "schema": "./src/generators/generate-lib/generate-lib.schema.json",
+      "description": "Generate a publishable npm package"
+    }
+  }
+}

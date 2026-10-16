@@ -1,0 +1,68 @@
+---
+name: 📦 Release Packages
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: 🔎 Detect Packages
+    runs-on: ubuntu-latest
+    outputs:
+      has-packages: ${{ steps.detect.outputs.has-packages }}
+    steps:
+      - name: 📀 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔎 Look for packages under projects/libs
+        id: detect
+        shell: bash
+        run: |
+          if compgen -G 'projects/libs/*/package.json' > /dev/null; then
+            echo "has-packages=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-packages=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ No packages yet, skipping release"
+          fi
+
+  release:
+    name: 📦 Version & Publish
+    needs: detect
+    if: ${{ needs.detect.outputs.has-packages == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      CI: true
+      HUSKY: 0
+      NX_NO_DAEMON: true
+      NX_NO_INTERACTIVE: true
+    steps:
+      - name: 📀 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🧪 Health Checks
+        uses: ./.github/workflows/health-check
+
+      - name: 🤖 Git Config
+        shell: bash
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 🚀 Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: pnpm exec nx release --yes

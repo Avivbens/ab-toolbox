@@ -1,0 +1,315 @@
+name: Claude Code
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  # Code review triggered by @claude-review tag in PR body or comments
+  code-review:
+    if: |
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft == false &&
+       contains(github.event.pull_request.body, '@claude-review')) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@claude-review'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Full history for git blame analysis
+
+      - name: Add eyes reaction to trigger comment
+        if: github.event_name == 'issue_comment'
+        run: |
+          gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+
+            You are a senior code reviewer focused on TECHNICAL ISSUES ONLY.
+            Do NOT check conventions or typos - a separate job handles that.
+            You must follow a strict two-phase process and limit yourself to AT MOST 3 comments.
+
+            ## PHASE 1: Context Gathering (MANDATORY - Do this first)
+
+            1. Run `gh pr view ${{ github.event.pull_request.number || github.event.issue.number }} --json title,body` to understand PR intent
+            2. Run `gh pr diff ${{ github.event.pull_request.number || github.event.issue.number }}` to see all changes
+            3. For each changed file, use the Read tool to examine surrounding code context (not just the diff)
+            4. Run `git log --oneline -10` on affected files to understand recent history
+
+            ## PHASE 2: Issue Identification
+
+            Identify potential issues in these categories ONLY:
+            - Bugs or logic errors that will cause runtime failures
+            - Security vulnerabilities (injection, auth bypass, data exposure)
+            - Performance issues with measurable impact
+            - Error handling gaps that will cause silent failures
+
+            For each potential issue, assign a severity score (1-10) based on:
+            - Likelihood of causing production problems
+            - Impact if it occurs
+            - How non-obvious the issue is
+
+            ## PHASE 3: Validation (MANDATORY for each candidate comment)
+
+            For your top 3 highest-severity issues, validate EACH ONE before commenting:
+
+            1. Re-read the relevant code context (use Read tool on the full file)
+            2. Check: Is this pattern used elsewhere in the codebase intentionally?
+            3. Check: Does the PR description or commit history explain this choice?
+            4. Check: Could a senior engineer familiar with this codebase disagree?
+            5. Check: Is the issue in code that was ACTUALLY CHANGED in this PR (lines starting with `+` in the diff)?
+            6. Ask yourself: "Am I 90%+ confident this is a real issue worth fixing?"
+
+            If ANY validation check fails, DROP the comment. Do not post it.
+
+            CRITICAL: Only comment on code that is part of the PR changes. Never comment on:
+            - Existing code that was not modified
+            - Code shown in diff context (lines starting with space, not `+`)
+            - Pre-existing issues in surrounding code
+
+            ## PHASE 4: Output
+
+            Post AT MOST 3 comments total. Zero comments is acceptable and preferred if nothing significant.
+
+            COMMENT FORMAT - Be brief and practical:
+            - Maximum 2-3 sentences per comment
+            - State the issue directly, then the fix
+            - No explanations of why it's important
+            - No code theory or background
+            - Example: "Null check missing. Add `if (x == null) return;` before line 45."
+
+            STRICT RULES:
+            - NEVER comment on style, conventions, naming, or typos (separate job handles this)
+            - NEVER leave summary comments or "looks good" messages
+            - NEVER comment if you're less than 90% confident
+            - NEVER repeat similar feedback across files
+            - NEVER comment on code that wasn't changed in this PR
+            - If uncertain, stay SILENT
+
+            Use `gh pr comment` for top-level feedback affecting multiple files.
+            Use `mcp__github_inline_comment__create_inline_comment` for inline code comments.
+          claude_args: |
+            --model claude-opus-4-5-20251101
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr list:*),Bash(git log:*),Bash(git blame:*),Bash(git show:*),Bash(git diff:*),mcp__github_inline_comment__create_inline_comment,Read,Glob,Grep,Task"
+
+      - name: Add completion reaction to trigger comment
+        if: github.event_name == 'issue_comment'
+        run: |
+          gh api repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content="+1"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Interactive @claude mentions in comments and issues
+  claude-interactive:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read # Required for Claude to read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  investigate-failing-tests:
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@investigate-failing-ci-tests')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Investigate Failing CI Tests
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+            checks: read
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number }}
+
+            You are a CI failure investigator. Your task is to analyze ALL failing CI tests for this PR and provide actionable diagnosis.
+            You must be 100% confident in your analysis before reporting anything.
+
+            ## PHASE 1: Identify Failing Jobs
+
+            1. Run `gh pr checks ${{ github.event.issue.number }} --json name,state,conclusion,detailsUrl` to see all CI checks
+            2. For checks with conclusion "failure", extract the run ID from detailsUrl
+            3. Run `gh run view <run_id> --json jobs` to get detailed job information
+            4. Identify which specific jobs failed
+
+            ## PHASE 2: Fetch and Analyze Logs for Each Failing Job
+
+            For each failed job:
+            1. Get the job ID from the jobs list (the databaseId field)
+            2. Fetch logs using: `gh api repos/${{ github.repository }}/actions/jobs/<job_id>/logs`
+            3. Search for test failure patterns:
+               - Lines containing "FAIL" followed by test file paths
+               - Lines with "✗" indicating failed test cases
+               - Error messages showing expected vs actual values
+               - Stack traces pointing to specific line numbers
+            4. Extract:
+               - Exact test file path and name
+               - The specific assertion that failed
+               - Expected vs actual values if shown
+
+            ## PHASE 3: Correlate Failures with PR Changes
+
+            1. Run `gh pr diff ${{ github.event.issue.number }}` to get all files changed in this PR
+            2. For each failing test, determine:
+               - Was the test file itself modified in this PR?
+               - Were the source files being tested modified?
+               - What specific changes could have caused the mismatch?
+            3. Read the relevant test file using the Read tool to understand the test expectations
+            4. Read the relevant source files to understand what changed
+
+            ## PHASE 4: Root Cause Determination
+
+            For each failing test, you must:
+            1. Identify the EXACT line in the test that fails
+            2. Identify the EXACT change in the PR that caused it
+            3. Understand WHY the test expectation no longer matches reality
+            4. Determine if this is:
+               - A test that needs updating (PR changed behavior intentionally)
+               - An actual bug in the PR code
+               - A flaky test unrelated to PR changes
+
+            CRITICAL: Only report findings you are 100% certain about. If you cannot determine the exact cause with complete certainty, clearly state what you could not determine and why.
+
+            ## PHASE 5: Output
+
+            Post a single comprehensive comment using `gh pr comment ${{ github.event.issue.number }} --body "..."` with this structure:
+
+            ---
+
+            ### CI Failure Analysis
+
+            #### Summary
+            - **Total failing jobs**: X
+            - **Total failing tests**: Y
+            - **Root cause identified**: Yes/No for each
+
+            ---
+
+            #### Failing Tests
+
+            **Test 1: `[test name]`**
+            - **File**: `path/to/test.spec.ts:LINE`
+            - **Error**: [exact error message from logs]
+            - **Root Cause**: [specific explanation]
+            - **PR Change**: `path/to/changed/file.ts:LINE` - [what was changed]
+            - **Fix**:
+              ```typescript
+              // Specific code fix
+              ```
+
+            [Repeat for each failing test]
+
+            ---
+
+            #### Tests Where Root Cause Could Not Be Determined
+
+            [List any tests where you could not achieve 100% certainty, explaining what information was missing]
+
+            ---
+
+            STRICT RULES:
+            - Only report findings you are 100% confident about
+            - If you cannot determine root cause with certainty, say so explicitly
+            - Always include exact file paths and line numbers
+            - Always show the specific PR change that caused each failure
+            - Never speculate or guess - if logs are unclear, state that clearly
+            - Do not make changes to any files
+          claude_args: |
+            --model claude-opus-4-5-20251101
+            --allowedTools "Bash(gh pr checks:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh run view:*),Bash(gh run list:*),Bash(gh api:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Read,Glob,Grep,Task"
+
+  claude-description:
+    if: |
+      github.event_name == 'pull_request' &&
+      (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'edited') &&
+      contains(github.event.pull_request.body, '@claude-description') &&
+      github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Generate PR Description
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr edit:*),Bash(git diff:*),Bash(git log:*),Read"
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Generate a description for this pull request.
+
+            1. Run `gh pr diff ${{ github.event.pull_request.number }}` to understand all changes
+            2. Run `gh pr view ${{ github.event.pull_request.number }} --json body` to read the current PR description
+            3. Generate a clear, concise PR description that includes:
+               - Summary of what the PR does
+               - Key changes made
+               - Any breaking changes or important notes
+            4. Update the PR description:
+               - Replace the @claude-description placeholder with the generated content
+               - IMPORTANT: Remove @claude-description completely from the final description
+               - Keep any text the user wrote before or after @claude-description
+               - Use `gh pr edit ${{ github.event.pull_request.number }} --body "NEW_BODY"` to update

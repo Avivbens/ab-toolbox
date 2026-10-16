@@ -1,0 +1,87 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "parallel": 8,
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/eslint.config.mjs",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)",
+      "!{projectRoot}/tsconfig.spec.json",
+      "!{projectRoot}/vitest.config.m[jt]s"
+    ],
+    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json", "{workspaceRoot}/.github/workflows/release.yaml"],
+    "plugins": ["{workspaceRoot}/projects/workspace/src/plugins/**"]
+  },
+  "tui": {
+    "enabled": false
+  },
+  "plugins": ["@ab-toolbox/workspace"],
+  "release": {
+    "projects": ["projects/libs/*"],
+    "projectsRelationship": "independent",
+    "version": {
+      "conventionalCommits": true,
+      "fallbackCurrentVersionResolver": "disk",
+      "preVersionCommand": "pnpm exec nx run-many --target=build --projects=\"projects/libs/*\""
+    },
+    "changelog": {
+      "workspaceChangelog": false,
+      "projectChangelogs": {
+        "createRelease": "github"
+      }
+    },
+    "git": {
+      "commitMessage": "chore(release): publish [skip ci]"
+    },
+    "releaseTag": {
+      "pattern": "{projectName}@{version}"
+    }
+  },
+  "targetDefaults": {
+    "build": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["^build"],
+      "cache": true,
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "tsc --build tsconfig.lib.json"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "inputs": ["default"],
+      "cache": true,
+      "configurations": {
+        "fix": {
+          "fix": true
+        }
+      },
+      "options": {
+        "lintFilePatterns": ["{projectRoot}/src/**/*.ts"]
+      }
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "executor": "nx:run-commands",
+      "inputs": ["default", "^default"],
+      "cache": true,
+      "options": {
+        "cwd": "{projectRoot}",
+        "command": "vitest --config vitest.config.mts",
+        "parallel": false,
+        "color": true,
+        "cache": true,
+        "watch": false
+      },
+      "configurations": {
+        "ci": {
+          "ci": true
+        }
+      }
+    }
+  },
+  "analytics": false
+}

@@ -1,0 +1,19 @@
+# @ab-toolbox/<%= name %>
+
+<%- description %>
+
+## Install
+
+```bash
+npm install @ab-toolbox/<%= name %>
+```
+
+## Usage
+
+```ts
+import { exported } from '@ab-toolbox/<%= name %>';
+```
+
+## License
+
+MIT

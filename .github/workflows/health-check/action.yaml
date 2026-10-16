@@ -1,0 +1,92 @@
+---
+name: '☑️ Checks Pipeline'
+description: 'Checks the codebase health'
+
+inputs:
+  run-tests-target:
+    description: 'Run tests target, default is `test`'
+    default: 'test'
+    required: false
+
+  run-tests:
+    description: 'Run tests'
+    default: 'true'
+    required: false
+
+  run-lint-target:
+    description: 'Run linter target, default is `lint`'
+    default: 'lint'
+    required: false
+
+  run-lint:
+    description: 'Run lint'
+    default: 'true'
+    required: false
+
+  run-build-target:
+    description: 'Run build target, default is `build`'
+    default: 'build'
+    required: false
+
+  run-build:
+    description: 'Run build'
+    default: 'true'
+    required: false
+
+  run-typecheck-target:
+    description: 'Run typecheck target, default is `typecheck`'
+    default: 'typecheck'
+    required: false
+
+  run-typecheck:
+    description: 'Run typecheck'
+    default: 'true'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: 🖥️ Setup Env
+      uses: ./.github/workflows/install
+
+    - name: 🎯 Build Composite Command
+      id: composite
+      shell: bash
+      run: |
+        TARGETS=""
+
+        # Collect enabled targets
+        if [[ "${{ inputs.run-build }}" == "true" ]]; then
+          TARGETS="${TARGETS}${{ inputs.run-build-target }},"
+        fi
+
+        if [[ "${{ inputs.run-lint }}" == "true" ]]; then
+          TARGETS="${TARGETS}${{ inputs.run-lint-target }},"
+        fi
+
+        if [[ "${{ inputs.run-tests }}" == "true" ]]; then
+          TARGETS="${TARGETS}${{ inputs.run-tests-target }},"
+        fi
+
+        if [[ "${{ inputs.run-typecheck }}" == "true" ]]; then
+          TARGETS="${TARGETS}${{ inputs.run-typecheck-target }},"
+        fi
+
+        # Remove trailing comma
+        TARGETS="${TARGETS%,}"
+
+        # Build the final command
+        if [[ -n "$TARGETS" ]]; then
+          COMMAND="pnpm exec nx affected --target=$TARGETS"
+          echo "command=$COMMAND" >> $GITHUB_OUTPUT
+          echo "📋 Will run: $COMMAND"
+        else
+          echo "command=" >> $GITHUB_OUTPUT
+          echo "⚠️ No targets enabled"
+        fi
+
+    - name: 🚀 Run Affected Checks
+      if: ${{ steps.composite.outputs.command != '' }}
+      shell: bash
+      run: |
+        ${{ steps.composite.outputs.command }}
