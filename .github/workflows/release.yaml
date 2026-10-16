@@ -65,4 +65,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
-        run: pnpm exec nx release --yes
+        # --first-release only kicks in for a package with no release tag yet: its version comes from disk and its changelog from the first commit
+        run: pnpm exec nx release --first-release --yes
