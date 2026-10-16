@@ -38,6 +38,8 @@ jobs:
         env:
           FORCE_COLOR: '0'
           NO_COLOR: '1'
+          # the dry-run still reads GitHub (release preview, commit authors); unauthenticated calls hit the shared-IP rate limit
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pnpm exec nx release --dry-run --first-release > output.txt
           REPORT=$(cat output.txt | base64 -w 0)
