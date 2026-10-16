@@ -99,4 +99,4 @@ The target is marked `continuous` so nx streams the output live and the interact
 
 ## License
 
-MIT
+MIT - see the [LICENSE](../../LICENSE) file for details
