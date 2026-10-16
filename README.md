@@ -4,9 +4,9 @@ A monorepo of small, focused tools published to npm under the `@ab-toolbox` scop
 
 ## Packages
 
-| Package    | Description |
-| ---------- | ----------- |
-| _none yet_ |             |
+| Package                                        | Description                                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`@ab-toolbox/grabvid`](projects/libs/grabvid) | Download videos and HLS streams from pages that block yt-dlp, with an interactive quality picker and resumable downloads |
 
 ## Development
 
