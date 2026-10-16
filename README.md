@@ -36,13 +36,17 @@ Releases are handled by [`nx release`](https://nx.dev/features/manage-releases) 
 - A `CHANGELOG.md` is written per package, tagged as `<package>@<version>`, and released on GitHub.
 - Packages are published to npm with [trusted publishing](https://docs.npmjs.com/trusted-publishers) from GitHub Actions, so no npm token is stored in the repo.
 
-The first version of a new package must be published manually, because npm only allows a trusted publisher on a package that already exists:
+npm only accepts a trusted publisher on a package that already exists, so a new package has to reach npm once by hand **before** you merge it:
 
 1. Make sure the `ab-toolbox` npm org exists and you are logged in (`npm login`).
-2. From `master`, run `pnpm exec nx release --first-release --projects=<name>`.
+2. Build it and publish its initial version (the `0.0.0` in its `package.json`):
+   ```bash
+   pnpm exec nx run @ab-toolbox/<name>:build
+   cd projects/libs/<name> && npm publish --access public
+   ```
 3. On npmjs.com, open the package settings and add `Avivbens/ab-toolbox` with workflow `release.yaml` as a trusted publisher.
 
-From then on, merging to `master` releases it automatically.
+Then merge. CI runs `nx release --first-release` on every push, so a package without a release tag yet gets its first version from `package.json` and a changelog from its full commit history, and is published like any other.
 
 ## License
 
