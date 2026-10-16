@@ -1,6 +1,6 @@
 {
   "name": "@ab-toolbox/grabvid",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Download videos and HLS streams from pages that block yt-dlp, with an interactive quality picker and resumable downloads",
   "keywords": [
     "cli",
